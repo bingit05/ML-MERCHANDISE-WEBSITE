@@ -1,0 +1,15 @@
+// src/routes/order/[id]/+page.js
+import { products } from '$lib/data.js'; 
+import { error } from '@sveltejs/kit';
+
+export function load({ params }) {
+    const product = products.find(item => String(item.id) === String(params.id));
+    
+    if (!product) {
+        throw error(404, {
+            message: `Product with ID "${params.id}" could not be found.`
+        });
+    }
+
+    return { product };
+}
