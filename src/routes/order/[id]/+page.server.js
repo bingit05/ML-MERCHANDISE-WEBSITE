@@ -1,6 +1,6 @@
 // src/routes/order/[id]/+page.server.js
 import emailjs from '@emailjs/nodejs';
-import { fail } from '@sveltejs/kit';
+import { fail, error } from '@sveltejs/kit';
 import { MongoClient } from 'mongodb';
 import { 
     EMAILJS_PUBLIC_KEY, 
@@ -10,11 +10,8 @@ import {
     MONGODB_URI 
 } from '$env/static/private';
 
-
 console.log("Mongo URI exists:", !!MONGODB_URI);
-console.log("Mongo URI:", MONGODB_URI?.slice(0, 30));
 
-// Initialize the MongoDB client once so it reuses connections efficiently
 const client = new MongoClient(MONGODB_URI);
 let dbConnection;
 
@@ -24,7 +21,7 @@ async function getDatabase() {
             console.log("Connecting to Mongo...");
             await client.connect();
             console.log("Connected!");
-            dbConnection = client.db('checkout_db');
+            dbConnection = client.db('mlclub'); 
         }
         return dbConnection;
     } catch (err) {
@@ -33,7 +30,40 @@ async function getDatabase() {
     }
 }
 
-// Temporary in-memory store to keep track of generated OTP codes
+/** @type {import('./$types').PageServerLoad} */
+export async function load({ params }) {
+    try {
+        const db = await getDatabase();
+        const productsCollection = db.collection('products');
+        const idAsNumber = Number(params.id);
+        
+        const product = await productsCollection.findOne({
+            $or: [
+                { id: params.id },
+                { id: isNaN(idAsNumber) ? null : idAsNumber }
+            ]
+        });
+
+        if (!product) {
+            throw error(404, {
+                message: `Product with ID "${params.id}" could not be found.`
+            });
+        }
+
+        return {
+            product: {
+                ...product,
+                _id: product._id?.toString()
+            }
+        };
+    } catch (err) {
+        if (err.status) throw err;
+        console.error('Failed to load product details:', err);
+        throw error(500, { message: 'Failed to load product details from database.' });
+    }
+}
+
+// Temporary in-memory store to keep track of generated OTP codes and order payloads
 const otpStore = new Map();
 
 /** @type {import('./$types').Actions} */
@@ -44,16 +74,25 @@ export const actions = {
         const email = formData.get('email');
         const fullName = formData.get('fullName');
         const quantity = formData.get('quantity');
+        const size = formData.get('size');
+        const address = formData.get('address');
 
         if (!email || typeof email !== 'string') {
             return fail(400, { message: 'A valid email address is required.' });
         }
+        if (!size || !address) {
+            return fail(400, { message: 'Size and Shipping Address are required items.' });
+        }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
+        // FIX: Cache EVERY piece of order data safely out-of-reach from client modifications
         otpStore.set(email, {
             otp,
             fullName: fullName || 'Guest Customer',
+            quantity: quantity ? Number(quantity) : 1,
+            size: size.toString(),
+            address: address.toString(),
             expiresAt: Date.now() + 5 * 60 * 1000
         });
 
@@ -76,7 +115,6 @@ export const actions = {
                 otpSent: true, 
                 email: email 
             };
-
         } catch (err) {
             console.error('EmailJS delivery failure:', err);
             return fail(500, { message: 'Failed to deliver security code. Try again.' });
@@ -87,16 +125,13 @@ export const actions = {
     verifyAndOrder: async ({ params, request }) => {
         const formData = await request.formData();
         const email = formData.get('email');
-        const address = formData.get('address');
-        const size = formData.get('size');
-        const quantity = formData.get('quantity');
         const submittedOtp = formData.get('otp');
 
-    
+        // Look up the master cached record from step 1
         const record = otpStore.get(email);
 
         if (!record) {
-            return fail(400, { message: 'No verification record found for this email.' });
+            return fail(400, { message: 'No verification record found for this email address. Please start over.' });
         }
 
         if (Date.now() > record.expiresAt) {
@@ -108,26 +143,24 @@ export const actions = {
             return fail(400, { message: 'Invalid code. Please double check and try again.' });
         }
 
-        // Clean up OTP from memory
+        // Clean up the cache token immediately upon verification success
         otpStore.delete(email);
 
-        // Success! Generate a random checkout ID number
         const simulatedOrderId = 'ORD-' + Math.random().toString(36).substring(2, 9).toUpperCase();
 
         try {
-            // Connect to MongoDB
             const db = await getDatabase();
             const ordersCollection = db.collection('orders');
 
-            // Save the data to MongoDB
+            // FIX: Pull directly from our pristine server record cache rather than risky hidden inputs
             const orderDocument = {
                 orderId: simulatedOrderId,
-                routeParamId: params.id, // Captures the folder [id] from the current page route
+                routeParamId: params.id,
                 customerName: record.fullName,
                 customerEmail: email,
-                shippingAddress: address,
-                clothingSize: size,
-                quantity: quantity ? Number(quantity) : 1,
+                shippingAddress: record.address,
+                clothingSize: record.size,
+                quantity: record.quantity,
                 status: 'Confirmed',
                 createdAt: new Date()
             };
@@ -138,7 +171,6 @@ export const actions = {
                 orderPlaced: true,
                 orderId: simulatedOrderId
             };
-
         } catch (dbErr) {
             console.error('MongoDB database storage failure:', dbErr);
             return fail(500, { message: 'Order verified, but failed to save details to database.' });

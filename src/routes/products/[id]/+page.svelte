@@ -1,30 +1,27 @@
 <script>
-  import { page } from '$app/state';
-  import { products } from '$lib/data';
-  import { fade } from 'svelte/transition';
+    import { fade } from 'svelte/transition';
 
-  let productId = $derived(Number(page.params.id));
-  let product = $derived(products.find(p => p.id === productId));
+    let { data } = $props();
 
-  let activeImageIndex = $state(0);
+    const product = data.product;
 
-  $effect(() => {
-    if (productId) {
-      activeImageIndex = 0;
+    let activeImageIndex = $state(0);
+
+    function nextImage() {
+        if (product.images.length > 0) {
+            activeImageIndex =
+                (activeImageIndex + 1) %
+                product.images.length;
+        }
     }
-  });
 
-  function nextImage() {
-    if (product && product.images.length > 0) {
-      activeImageIndex = (activeImageIndex + 1) % product.images.length;
+    function prevImage() {
+        if (product.images.length > 0) {
+            activeImageIndex =
+                (activeImageIndex - 1 + product.images.length) %
+                product.images.length;
+        }
     }
-  }
-
-  function prevImage() {
-    if (product && product.images.length > 0) {
-      activeImageIndex = (activeImageIndex - 1 + product.images.length) % product.images.length;
-    }
-  }
 </script>
 
 <!-- Fullscreen Video Layer Container -->
@@ -42,7 +39,7 @@
 <div class="dark-overlay"></div>
 
 <div class="navbar">
-  <a href="/products" class="back-link">← Back to Products</a>
+  <a href="/merchandise" class="back-link">← Back to Products</a>
 </div>
 
 {#if product}
@@ -68,6 +65,13 @@
           <span class="dot" class:active={index === activeImageIndex}></span>
         {/each}
       </div>
+      <div class="availability">
+    {#if product.state}
+        <span class="available">● Available</span>
+    {:else}
+        <span class="not-available">● Not Available</span>
+    {/if}
+</div>
     </div>
 
     <div class="info">
@@ -76,7 +80,11 @@
       <p class="description">Exclusive Machine Learning NITS club merchandise.</p>
       <a href="/order/{product.id}" class="buy-btn">Buy Now</a>
     </div>
+
+
   </div>
+
+  
 {:else}
   <div class="error-msg">
     <h2>Oops! Product not found.</h2>
@@ -138,13 +146,54 @@
     background: rgba(20, 20, 20, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 16px;
+
     display: flex;
     gap: 50px;
+
     padding: 30px;
     max-width: 1200px;
+    width: calc(100% - 40px);
     margin: 20px auto;
-  }
+    box-sizing: border-box;
+}
 
+/* Large tablets */
+@media (max-width: 1200px) {
+    .product-details {
+        max-width: 1000px;
+        gap: 35px;
+        padding: 25px;
+    }
+}
+
+/* Tablets */
+@media (max-width: 900px) {
+    .product-details {
+        flex-direction: column;
+        gap: 25px;
+        padding: 20px;
+        width: calc(100% - 30px);
+    }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+    .product-details {
+        gap: 20px;
+        padding: 15px;
+        border-radius: 12px;
+        width: calc(100% - 20px);
+    }
+}
+
+/* Small phones */
+@media (max-width: 400px) {
+    .product-details {
+        padding: 12px;
+        gap: 15px;
+        border-radius: 10px;
+    }
+}
   .carousel-container {
     flex: 1;
     display: flex;
@@ -226,4 +275,24 @@
     transition: width 0.3s ease;
   }
   .navbar a:hover::after { width: 100%; }
+
+  .availability{
+
+    font-size: x-large;
+    color:red;
+    font-style:italic;
+    display: inline-block;
+    animation: jump 0.8s infinite ease-in-out;
+
+  }
+
+
+@keyframes jump {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
 </style>

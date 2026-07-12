@@ -1,6 +1,7 @@
 <script>
-  import { products } from '$lib/data';
-  
+let { data } = $props();
+
+const products = data.products;
   // Track which image index is active for each product
   let activeIndices = $state(products.map(() => 0));
 
@@ -162,13 +163,37 @@
     align-items: center;
     color: rgb(200, 50, 12);
   }
-
-  .product-grid {
+.product-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, 1fr); /* Desktop */
     gap: 20px;
     padding: 100px;
-  }
+}
+
+/* Large tablets */
+@media (max-width: 1200px) {
+    .product-grid {
+        grid-template-columns: repeat(3, 1fr);
+        padding: 60px;
+    }
+}
+
+/* Tablets */
+@media (max-width: 900px) {
+    .product-grid {
+        grid-template-columns: repeat(2, 1fr);
+        padding: 40px;
+    }
+}
+
+/* Phones */
+@media (max-width: 600px) {
+    .product-grid {
+        grid-template-columns: 1fr;
+        padding: 20px;
+    }
+}
+  
   
   .card {
     border: 1px solid #e9874a;
@@ -191,7 +216,36 @@
     height: 270px;
     object-fit: cover;
     border-radius: 4px;
-  }
+}
+
+/* Large tablets */
+@media (max-width: 1200px) {
+    .card img {
+        height: 240px;
+    }
+}
+
+/* Tablets */
+@media (max-width: 900px) {
+    .card img {
+        height: 220px;
+    }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+    .card img {
+        height: 200px;
+        border-radius: 8px;
+    }
+}
+
+/* Small phones */
+@media (max-width: 400px) {
+    .card img {
+        height: 180px;
+    }
+}
 
   .options {
     display: flex;
